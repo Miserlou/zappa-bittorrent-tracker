@@ -135,12 +135,13 @@ def announce():
         peer['peer_id'] = peer_id
     peers.append(peer)
 
-    return bencode({
+    response = bencode({
         'interval': ANNOUNCE_INTERVAL,
         'complete': 0,
         'incomplete': 0,
         'peers': peers
-})
+    })
+    return Response(response, mimetype='text/plain')
 
 @app.route('/scrape', methods=['GET'])
 def scrape():
@@ -158,10 +159,10 @@ def scrape():
      #    incomplete: number of non-seeder peers, aka "leechers" (integer)
      #    name: (optional) the torrent's internal name, as specified by the "name" file in the info section of the .torrent file
 
-    res = bencode({
+    response = bencode({
         'files': files,
     })
-    return Response(res, mimetype='text/plain')
+    return Response(response, mimetype='text/plain')
 
 
 def get_info_hash(request, multiple=False):

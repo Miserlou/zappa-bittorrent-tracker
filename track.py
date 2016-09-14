@@ -5,6 +5,7 @@
 zappa-bittorrent-tracker
 
 An experimental, completely server-less BitTorrent tracker powered by Zappa, Flask and S3.
+Or, maybe DynamoDB: https://github.com/jlafon/PynamoDB
 @jarus' "flaker" was used as a reference to get this project started. https://github.com/jarus/flacker/
 
 """
@@ -24,6 +25,7 @@ from flask import Flask, render_template, request, make_response, redirect, abor
 
 ANNOUNCE_INTERVAL = 300
 DEBUG = True
+BUCKET_LOCATION
 
 ##
 # App

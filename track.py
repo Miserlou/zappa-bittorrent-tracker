@@ -17,7 +17,7 @@ from binascii import b2a_hex
 from struct import pack
 
 from bencode import bencode
-from flask import Flask, render_template, request, make_response, redirect, abort
+from flask import Flask, render_template, request, Response, make_response, redirect, abort
 
 ##
 # Conf
@@ -25,7 +25,6 @@ from flask import Flask, render_template, request, make_response, redirect, abor
 
 ANNOUNCE_INTERVAL = 300
 DEBUG = True
-BUCKET_LOCATION
 
 ##
 # App
@@ -142,6 +141,28 @@ def announce():
         'incomplete': 0,
         'peers': peers
 })
+
+@app.route('/scrape', methods=['GET'])
+def scrape():
+    """
+    Scrape call.
+
+    Ex: http://example.com/scrape.php?info_hash=aaaaaaaaaaaaaaaaaaaa&info_hash=bbbbbbbbbbbbbbbbbbbb&info_hash=cccccccccccccccccccc
+    https://wiki.theory.org/BitTorrentSpecification#Tracker_.27scrape.27_Convention
+    """
+
+    files = {}
+     # files: a dictionary containing one key/value pair for each torrent for which there are stats. If info_hash was supplied and was valid, this dictionary will contain a single key/value. Each key consists of a 20-byte binary info_hash. The value of each entry is another dictionary containing the following:
+     #    complete: number of peers with the entire file, i.e. seeders (integer)
+     #    downloaded: total number of times the tracker has registered a completion ("event=complete", i.e. a client finished downloading the torrent)
+     #    incomplete: number of non-seeder peers, aka "leechers" (integer)
+     #    name: (optional) the torrent's internal name, as specified by the "name" file in the info section of the .torrent file
+
+    res = bencode({
+        'files': files,
+    })
+    return Response(res, mimetype='text/plain')
+
 
 def get_info_hash(request, multiple=False):
     """

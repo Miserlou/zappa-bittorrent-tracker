@@ -1,0 +1,10 @@
+language: python
+python:
+  - "2.7"
+# command to install dependencies
+install:
+  - "pip install setuptools --upgrade; pip install -r requirements.txt; pip install nose"
+# command to run tests
+script: nosetests
+notifications:
+  slack: zappateam:TTJ0mfHunDK0IBweKkEXjGpR

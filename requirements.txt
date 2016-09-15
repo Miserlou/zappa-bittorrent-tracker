@@ -1,0 +1,15 @@
+bencode==1.0
+boto3==1.4.0
+botocore==1.4.54
+click==6.6
+docutils==0.12
+Flask==0.11.1
+futures==3.0.5
+itsdangerous==0.24
+Jinja2==2.8
+jmespath==0.9.0
+MarkupSafe==0.23
+python-dateutil==2.5.3
+s3transfer==0.1.4
+six==1.10.0
+Werkzeug==0.11.11

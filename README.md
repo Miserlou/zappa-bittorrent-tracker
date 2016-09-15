@@ -4,7 +4,19 @@ An experimental server-less BitTorrent tracker with no webserver and a managed d
 
 Powered by [Zappa](https://github.com/Miserlou/Zappa), with Amazon DynamoDB (or later S3) as a database.
 
-Let's see what happens.
+## Installation
+
+Clone, virtualenv, requirements.txt. You know the drill.
+
+Next, create a [DynamoDB table](https://console.aws.amazon.com/dynamodb/home?region=us-east-1#).
+
+Then open up `track.py` and edit your configuration.
+
+Run locally with `run.sh`, and test local announces with `announce.sh`.
+
+Finally, to deploy, `zappa init`, `zappa deploy`, (optionally) `zappa certify`.
+
+And you're done! You now a have a completely server-less, no-ops, low-cost, infinately scalable BitTorrent tracker!
 
 #### Caveats
 

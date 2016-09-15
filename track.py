@@ -96,11 +96,13 @@ def announce():
     port = int(request.args['port'])
 
     if request.args.get('event') == 'stopped':
-        # redis.srem(seed_set_key, peer_id)
-        # redis.srem(leech_set_key, peer_id)
-        # redis.delete(peer_key)
+        remove_peer_from_info_hash(
+                            info_hash, 
+                            peer_id, 
+                        )
         return bencode({})
-    # elif request.args.get('event') == 'completed': 
+    elif request.args.get('event') == 'completed': 
+        increment_completed(info_hash)
 
     user_info = add_peer_to_info_hash(
                     info_hash, 
@@ -190,22 +192,7 @@ def add_peer_to_info_hash(
     Update an info_hash with this peer.
     """
 
-    # See if we have this peer yet
-    response = table.query(
-        KeyConditionExpression=Key('info_hash').eq(info_hash)
-    )
-    if response['Count'] == 0:
-        # We don't, so make an empty torrent
-        try:
-            response = table.put_item(
-               Item={
-                    'info_hash': info_hash,
-                    'peers': {},
-                    'completed': 0
-                }
-            )
-        except botocore.exceptions.ClientError as e:
-            print(e)
+    ensure_torrent_exists(info_hash)
 
     # Prep the new info
     info_set = {
@@ -234,6 +221,76 @@ def add_peer_to_info_hash(
     if result['ResponseMetadata']['HTTPStatusCode'] == 200 and 'Attributes' in result:
         return True
     return False
+
+def remove_peer_from_info_hash(
+                            info_hash, 
+                            peer_id, 
+                        ):
+
+    ensure_torrent_exists(info_hash)
+
+    # Update the torrents list with the new information
+    result = table.update_item(
+        Key={
+            'info_hash': info_hash,
+        },
+        UpdateExpression="REMOVE peers.#s",
+        ExpressionAttributeNames={
+            '#s': peer_id,
+        },
+        ReturnValues="UPDATED_NEW"
+    )
+
+    if result['ResponseMetadata']['HTTPStatusCode'] == 200 and 'Attributes' in result:
+        return True
+    return False
+
+def increment_completed(info_hash):
+    """
+    Atomic increment completed for a torrent.
+    """
+
+    ensure_torrent_exists(info_hash)
+
+    # Update the torrents list with the new information
+    result = table.update_item(
+        Key={
+            'info_hash': info_hash,
+        },
+        UpdateExpression="SET completed = completed + :incr",
+        ExpressionAttributeValues={
+            ':incr': 1,
+        },
+        ReturnValues="UPDATED_NEW"
+    )
+
+    if result['ResponseMetadata']['HTTPStatusCode'] == 200 and 'Attributes' in result:
+        return True
+    return False
+
+def ensure_torrent_exists(info_hash):
+    """
+    Ensure a torrent exists before updating.
+    """
+
+    # See if we have this peer yet
+    response = table.query(
+        KeyConditionExpression=Key('info_hash').eq(info_hash)
+    )
+    if response['Count'] == 0:
+        # We don't, so make an empty torrent
+        try:
+            response = table.put_item(
+               Item={
+                    'info_hash': info_hash,
+                    'peers': {},
+                    'completed': 0
+                }
+            )
+        except botocore.exceptions.ClientError as e:
+            print(e)
+
+    return
 
 def get_peers_for_info_hash(
                 info_hash, 

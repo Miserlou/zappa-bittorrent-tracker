@@ -10,11 +10,17 @@ Or, maybe DynamoDB: https://github.com/jlafon/PynamoDB
 
 """
 
-import os
 import cgi
+import decimal
+import json
+import os
 import socket
 from binascii import b2a_hex
 from struct import pack
+
+import boto3
+import botocore
+from boto3.dynamodb.conditions import Key, Attr
 
 from bencode import bencode
 from flask import Flask, render_template, request, Response, make_response, redirect, abort
@@ -25,6 +31,15 @@ from flask import Flask, render_template, request, Response, make_response, redi
 
 ANNOUNCE_INTERVAL = 300
 DEBUG = True
+TABLE_NAME = "zbt"
+AWS_REGION = "us-east-1"
+
+##
+# AWS
+##
+
+dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)
+table = dynamodb.Table(TABLE_NAME)
 
 ##
 # App
@@ -54,6 +69,7 @@ def announce():
     Main announce call.
     """
 
+    # Ensure the request is all there
     need_args = (
             'info_hash', 
             'peer_id', 
@@ -61,13 +77,23 @@ def announce():
             'uploaded', 
             'downloaded', 
             'left')
-
     for arg in need_args:
         if arg not in request.args:
             return fail('Missing Argument (%s)' % arg)
     
+    # Get the request information
     peer_id = request.args['peer_id']
     info_hash = get_info_hash(request)
+    uploaded = request.args['uploaded']
+    downloaded = request.args['downloaded']
+    left = request.args['left']
+    if 'ip' not in request.args:
+        ip = request.args.get('ip', request.remote_addr)
+        # TODO: Validate
+    else:
+        ip = request.args['ip']
+        # TODO: Validate
+    port = request.args['port']
 
     if request.args.get('event') == 'stopped':
         # redis.srem(seed_set_key, peer_id)
@@ -77,12 +103,6 @@ def announce():
     elif request.args.get('event') == 'completed':
         # redis.hincrby(torrent_key, 'downloaded', 1)
         pass
-    if 'ip' not in request.args:
-        ip = request.args.get('ip', request.remote_addr)
-        # TODO: Validate
-    else:
-        ip = request.args['ip']
-        # TODO: Validate
 
     # redis.hset(peer_key, 'ip', ip)
     # redis.hset(peer_key, 'port', request.args.get('port', int))
@@ -124,6 +144,16 @@ def announce():
     #             continue
     #         port = pack(">H", int(port))
     #         peers += (ip + port)
+
+    user_info = add_info_to_peer(
+                    info_hash, 
+                    peer_id, 
+                    ip,
+                    port, 
+                    uploaded, 
+                    downloaded, 
+                    left
+                )
 
     ip = "127.0.0.1"
     port = 1234
@@ -185,3 +215,79 @@ def fail(message=""):
         'interval': ANNOUNCE_INTERVAL,
         'failure reason': message,
     })
+
+##
+# Database
+##
+
+def add_info_to_peer(
+                info_hash, 
+                peer_id, 
+                ip,
+                port, 
+                uploaded, 
+                downloaded, 
+                left
+            ):
+    """
+    Update a peer's info_hash status.
+    """
+
+    # See if we have this peer yet
+    response = table.query(
+        KeyConditionExpression=Key('peer_id').eq(peer_id)
+    )
+    if response['Count'] == 0:
+        # We don't, so make an empty peer
+        try:
+            response = table.put_item(
+               Item={
+                    'peer_id': peer_id,
+                    'ip': ip,
+                    'port': port,
+                    'torrents': []
+                }
+            )
+        except botocore.exceptions.ClientError as e:
+            print(e)
+
+    # Prep the new info
+    info_set = {
+        "info_hash": info_hash,
+        "uploaded": uploaded,
+        "downloaded": downloaded,
+        "left": left
+    }
+
+    # Update the torrents list with the new information
+    result = table.update_item(
+        Key={
+            'peer_id': peer_id,
+        },
+        UpdateExpression="SET torrents = list_append(torrents, :i)",
+        ExpressionAttributeValues={
+            ':i': [info_set],
+        },
+        ReturnValues="UPDATED_NEW"
+    )
+
+    if result['ResponseMetadata']['HTTPStatusCode'] == 200 and 'Attributes' in result:
+        return True
+    return False
+
+###
+# Utility
+###
+
+# Helper class to convert a DynamoDB item to JSON.
+class DecimalEncoder(json.JSONEncoder):
+    """
+    From http://docs.aws.amazon.com/amazondynamodb/latest/gettingstartedguide/GettingStarted.Python.03.html
+    """
+    def default(self, o):
+        if isinstance(o, decimal.Decimal):
+            if o % 1 > 0:
+                return float(o)
+            else:
+                return int(o)
+        return super(DecimalEncoder, self).default(o)

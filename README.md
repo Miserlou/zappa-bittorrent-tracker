@@ -3,6 +3,8 @@
 
 An experimental server-less BitTorrent tracker with no webserver and a managed database server.
 
+See an [example here](https://tracker.zappa.io/)!
+
 Powered by [Zappa](https://github.com/Miserlou/Zappa), with Amazon DynamoDB (or later S3) as a database.
 
 ## Installation

@@ -62,9 +62,31 @@
         <h1>I'm a <b>server-less</b> BitTorrent tracker!</h1>
       </div>
 
-      <p>
-        Announce to me!
-      </p>
+      <h3>
+        Announce to me :)
+      </h3>
+
+      <table class="table table-hover">
+
+        <caption>Active Torrents</caption> 
+
+        <thead>
+          <td><b>Hash</b></td>
+          <td><b>Peers</b></td>
+          <td><b>Completed</b></td>
+        </thead>
+
+        <tbody> 
+          {% for item in items %}
+            <tr> 
+              <td><a href="/scrape?info_hash={{item.info_hash}}">{{item.info_hash}}</a></td>
+              <td>{{item.peers}}</td>
+              <td>{{item.completed}}</td>
+            </tr>
+          {% endfor %}
+        </tbody> 
+
+      </table>
 
     </div>
 

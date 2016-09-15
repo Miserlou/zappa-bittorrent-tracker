@@ -61,7 +61,16 @@ def home():
     Could do some stats if we wanted.
     """
 
-    return render_template('index.html')
+    all_items = get_all_items()
+    items = []
+    for item in all_items:
+        items.append({
+            'info_hash': item['info_hash'],
+            'peers': len(item['peers']),
+            'completed': item['completed']
+        })
+
+    return render_template('index.html', items=items)
 
 @app.route('/announce', methods=['GET'])
 def announce():
@@ -307,6 +316,17 @@ def get_peers_for_info_hash(
         return []
     else:
         return response['Items'][0]['peers']
+
+def get_all_items():
+    """
+    Get all items
+    """
+
+    response = table.scan()
+    if response['Count'] == 0:
+        return []
+    else:
+        return response['Items']
 
 ###
 # Utility

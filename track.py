@@ -31,7 +31,7 @@ from flask import Flask, render_template, request, Response, make_response, redi
 
 ANNOUNCE_INTERVAL = 300
 DEBUG = True
-TABLE_NAME = "zbt"
+TABLE_NAME = "zabito"
 AWS_REGION = "us-east-1"
 
 ##
@@ -84,68 +84,25 @@ def announce():
     # Get the request information
     peer_id = request.args['peer_id']
     info_hash = get_info_hash(request)
-    uploaded = request.args['uploaded']
-    downloaded = request.args['downloaded']
-    left = request.args['left']
+    uploaded = int(request.args['uploaded'])
+    downloaded = int(request.args['downloaded'])
+    left = int(request.args['left'])
     if 'ip' not in request.args:
         ip = request.args.get('ip', request.remote_addr)
         # TODO: Validate
     else:
         ip = request.args['ip']
         # TODO: Validate
-    port = request.args['port']
+    port = int(request.args['port'])
 
     if request.args.get('event') == 'stopped':
         # redis.srem(seed_set_key, peer_id)
         # redis.srem(leech_set_key, peer_id)
         # redis.delete(peer_key)
         return bencode({})
-    elif request.args.get('event') == 'completed':
-        # redis.hincrby(torrent_key, 'downloaded', 1)
-        pass
+    # elif request.args.get('event') == 'completed': 
 
-    # redis.hset(peer_key, 'ip', ip)
-    # redis.hset(peer_key, 'port', request.args.get('port', int))
-    # redis.hset(peer_key, 'uploaded', request.args['uploaded'])
-    # redis.hset(peer_key, 'downloaded', request.args['downloaded'])
-    # redis.hset(peer_key, 'left', request.args['left'])
-    # redis.expire(peer_key, announce_interval() + 60)
-
-    # if request.args.get('left', 1, int) == 0 \
-    # or request.args.get('event') == 'completed':
-    #     redis.sadd(seed_set_key, peer_id)
-    #     redis.srem(leech_set_key, peer_id)
-    # else:
-    #     redis.sadd(leech_set_key, peer_id)
-    #     redis.srem(seed_set_key, peer_id)
-
-    # peer_count = 0
-    # if request.args.get('compact', False, bool):
-    #     peers = ""
-    # else:
-    #     peers = []
-    # for peer_id in redis.sunion(seed_set_key, leech_set_key):
-    #     peer_key = 'peer:%s' % peer_id
-    #     ip, port, left = redis.hmget(peer_key, 'ip', 'port', 'left')
-    #     if (ip and port) is None:
-    #         redis.srem(seed_set_key, peer_id)
-    #         redis.srem(leech_set_key, peer_id)
-    #         continue
-    #     elif peer_count >= request.args.get('numwant', 50, int):
-    #         continue
-    #     elif int(left) == 0 and request.args.get('left', 1, int) == 0:
-    #         continue
-
-    #     peer_count += 1
-    #     if request.args.get('compact', False, bool):
-    #         try:
-    #             ip = socket.inet_pton(socket.AF_INET, ip)
-    #         except socket.error:
-    #             continue
-    #         port = pack(">H", int(port))
-    #         peers += (ip + port)
-
-    user_info = add_info_to_peer(
+    user_info = add_peer_to_info_hash(
                     info_hash, 
                     peer_id, 
                     ip,
@@ -155,21 +112,21 @@ def announce():
                     left
                 )
 
-    ip = "127.0.0.1"
-    port = 1234
-    peer_id = "abcdef"
+    peers = get_peers_for_info_hash(info_hash)
 
-    peers = []
-    peer = {'ip': ip, 'port': int(port)}
-    if 'no_peer_id' not in request.args:
-        peer['peer_id'] = peer_id
-    peers.append(peer)
+    b_peers = []
+    for peer_id in peers:
+        b_peers.append({
+            'ip': str(peers[peer_id][0]['ip']),
+            'port': int(peers[peer_id][0]['port']),
+            'peer_id': str(peer_id)
+        })
 
     response = bencode({
         'interval': ANNOUNCE_INTERVAL,
         'complete': 0,
         'incomplete': 0,
-        'peers': peers
+        'peers': b_peers
     })
     return Response(response, mimetype='text/plain')
 
@@ -220,7 +177,7 @@ def fail(message=""):
 # Database
 ##
 
-def add_info_to_peer(
+def add_peer_to_info_hash(
                 info_hash, 
                 peer_id, 
                 ip,
@@ -230,22 +187,21 @@ def add_info_to_peer(
                 left
             ):
     """
-    Update a peer's info_hash status.
+    Update an info_hash with this peer.
     """
 
     # See if we have this peer yet
     response = table.query(
-        KeyConditionExpression=Key('peer_id').eq(peer_id)
+        KeyConditionExpression=Key('info_hash').eq(info_hash)
     )
     if response['Count'] == 0:
-        # We don't, so make an empty peer
+        # We don't, so make an empty torrent
         try:
             response = table.put_item(
                Item={
-                    'peer_id': peer_id,
-                    'ip': ip,
-                    'port': port,
-                    'torrents': []
+                    'info_hash': info_hash,
+                    'peers': {},
+                    'completed': 0
                 }
             )
         except botocore.exceptions.ClientError as e:
@@ -253,18 +209,22 @@ def add_info_to_peer(
 
     # Prep the new info
     info_set = {
-        "info_hash": info_hash,
         "uploaded": uploaded,
         "downloaded": downloaded,
-        "left": left
+        "left": left,
+        "ip": ip,
+        "port": port
     }
 
     # Update the torrents list with the new information
     result = table.update_item(
         Key={
-            'peer_id': peer_id,
+            'info_hash': info_hash,
         },
-        UpdateExpression="SET torrents = list_append(torrents, :i)",
+        UpdateExpression="SET peers.#s = :i",
+        ExpressionAttributeNames={
+            '#s': peer_id,
+        },
         ExpressionAttributeValues={
             ':i': [info_set],
         },
@@ -274,6 +234,22 @@ def add_info_to_peer(
     if result['ResponseMetadata']['HTTPStatusCode'] == 200 and 'Attributes' in result:
         return True
     return False
+
+def get_peers_for_info_hash(
+                info_hash, 
+                limit=50
+            ):
+    """
+    Get current peers
+    """
+
+    response = table.query(
+        KeyConditionExpression=Key('info_hash').eq(info_hash)
+    )
+    if response['Count'] == 0:
+        return []
+    else:
+        return response['Items'][0]['peers']
 
 ###
 # Utility

@@ -15,7 +15,9 @@ import decimal
 import json
 import os
 import socket
+import time
 from binascii import b2a_hex
+from datetime import datetime, timedelta
 from struct import pack
 
 import boto3
@@ -29,7 +31,7 @@ from flask import Flask, render_template, request, Response, make_response, redi
 # Conf
 ##
 
-ANNOUNCE_INTERVAL = 300
+ANNOUNCE_INTERVAL = 1800
 DEBUG = True
 TABLE_NAME = "zabito"
 AWS_REGION = "us-east-1"
@@ -184,6 +186,27 @@ def fail(message=""):
         'failure reason': message,
     })
 
+def purge_expired_peers():
+    """
+    Removes peers who haven't announced in the last internval.
+
+    Should be set as a recurring event source in your Zappa config.
+    """
+
+    # This is a costly operation, but I think it has to be done.
+    # Optimizations (pagination? queries? batching?) welcomed.
+    all_torrents = table.scan()
+    for torrent in all_torrents['Items']:
+        for peer_id in torrent['peers']:
+            peer_last_announce = int(torrent['peers'][peer_id][0]['last_announce'])
+            window = datetime.now() - timedelta(seconds=ANNOUNCE_INTERVAL)
+            window_unix = int(time.mktime(window.timetuple()))
+
+            if peer_last_announce < window_unix:
+                remove_peer_from_info_hash(torrent['info_hash'], peer_id)
+
+    return
+
 ##
 # Database
 ##
@@ -209,7 +232,8 @@ def add_peer_to_info_hash(
         "downloaded": downloaded,
         "left": left,
         "ip": ip,
-        "port": port
+        "port": port,
+        "last_announce": int(time.time())
     }
 
     # Update the torrents list with the new information

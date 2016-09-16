@@ -40,6 +40,12 @@ To make sure that peers who don't gracefully close their connections are purged,
 
 And then `zappa schedule` to schedule the purge as a recurring function.
 
+### Performance
+
+With the training wheels taken off your AWS account, you should be able to handle 5,000 simultaneous connections per second, so with a 30-minute announce interval, this set-up should be able to handle 9,000,000 peers out of the box. With a multi-region deployment and a larger announce window, this should be able to scale to 100,000,000+ peers without much difficulty.
+
+DynamoDB is the most expensive component of this. An alternative S3-based datastore (may be) coming soon.
+
 #### Caveats
 
 DynamoDB is non-Free software. S3 is also non-Free, but there are S3-compatible Free alternatives. The first version of this program will use DynamoDB, and hopefully later versions will use S3 as an alternative. Ideally, it will be possible to one day use this software as part of a completely _Free as in Freedom_ server-less stack.

@@ -1,11 +1,11 @@
 ![Tracker](http://i.imgur.com/2e7KpW7.jpg)
 # zappa-bittorrent-tracker [![Build Status](https://travis-ci.org/Miserlou/zappa-bittorrent-tracker.svg)](https://travis-ci.org/Miserlou/zappa-bittorrent-tracker) [![Slack](https://img.shields.io/badge/chat-slack-ff69b4.svg)](https://slack.zappa.io/)
 
-An experimental server-less BitTorrent tracker with no webserver and a managed database server.
+An experimental server-less BitTorrent tracker with no permanent web server and no permanent database server.
 
 See an [example here](https://tracker.zappa.io/)!
 
-Powered by [Zappa](https://github.com/Miserlou/Zappa), with Amazon DynamoDB (or later S3) as a database.
+Powered by [Zappa](https://github.com/Miserlou/Zappa), with Amazon DynamoDB or S3 as a datastore.
 
 ## Installation
 
@@ -13,7 +13,7 @@ Clone, virtualenv, requirements.txt. You know the drill.
 
 Next, create a [DynamoDB table](https://console.aws.amazon.com/dynamodb/home?region=us-east-1#).
 
-Then open up `track.py` and edit your configuration.
+Then open up `track.py` and edit your configuration. You can set `DATASTORE` to either `S3` or `DynamoDB`, depending on which backend you want to use.
 
 Run locally with `run.sh`, and test local announces with `announce.sh`.
 
@@ -44,13 +44,12 @@ And then `zappa schedule` to schedule the purge as a recurring function.
 
 With the training wheels taken off your AWS account, you should be able to handle 5,000 simultaneous connections per second, so with a 30-minute announce interval, this set-up should be able to handle 9,000,000 peers out of the box. With a multi-region deployment and a larger announce window, this should be able to scale to 100,000,000+ peers without much difficulty.
 
-DynamoDB is the most expensive component of this. An alternative S3-based datastore (may be) coming soon.
+DynamoDB is the most expensive component of this. S3 should be far, far, far cheaper to use, but may have race problems in the peer tracking for high-traffic torrents.
 
-#### Caveats
+### A Note on Software Freedom
 
-DynamoDB is non-Free software. S3 is also non-Free, but there are S3-compatible Free alternatives. The first version of this program will use DynamoDB, and hopefully later versions will use S3 as an alternative. Ideally, it will be possible to one day use this software as part of a completely _Free as in Freedom_ server-less stack.
+DynamoDB is non-Free software. With Riak, OpenWhisk and Nginx (or the upcoming OpenWhisk API Gateway product), it should be possible to run this as part of an entirely Free Software server-less stack.
 
 ## License
 
-Rich Jones 2016
-MIT License
+Rich Jones 2016. MIT License.
